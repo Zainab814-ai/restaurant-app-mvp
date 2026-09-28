@@ -1,0 +1,10 @@
+Explanation of Empty Dependency Array in Filtering Effect:
+
+If the dependency array of the filtering useEffect is left empty ([]), 
+the effect will execute only once when the component mounts.
+ Consequently, when a user selects a different category chip, 
+the selectedCategory state will update, but the filtering effect will not re-trigger.
+ As a result, the filteredItems state will remain stuck on its initial state (showing all
+ menu items) and will fail to update dynamically according to the user's category selection.
+ Including both selectedCategory and menuItems in the dependency array ensures that the filtering
+ logic re-runs whenever the user switches categories or when fresh menu data is fetched.
