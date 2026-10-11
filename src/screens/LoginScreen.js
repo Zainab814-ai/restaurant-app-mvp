@@ -5,264 +5,399 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Alert,
   ActivityIndicator,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useForm } from '../hooks/useForm';
-import { mockUsers } from '../data/users';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginScreen({ navigation }) {
-  const authContext = useAuth ? useAuth() : null;
-  const login = authContext?.login || (() => {});
-
-  const [isSignup, setIsSignup] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSignup, setIsSignup] = useState(true); // Default active tab: Sign Up
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [role, setRole] = useState('customer'); // Default role: Customer
   const [showPassword, setShowPassword] = useState(false);
 
-  const validate = (formValues) => {
-    let errs = {};
-    const emailRegex = /\S+@\S+\.\S+/;
-    if (!formValues.email) {
-      errs.email = 'Email is required';
-    } else if (!emailRegex.test(formValues.email)) {
-      errs.email = 'Invalid email address format';
-    }
+  const { login, register, logout, loading } = useAuth();
 
-    if (!formValues.password) {
-      errs.password = 'Password is required';
-    } else if (formValues.password.length < 8 || !/\d/.test(formValues.password)) {
-      errs.password = 'Password must be at least 8 characters with at least 1 digit';
+  const handleSubmit = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
     }
 
     if (isSignup) {
-      if (!formValues.name) errs.name = 'Full name is required';
-      if (formValues.password !== formValues.confirmPassword) {
-        errs.confirmPassword = 'Passwords do not match';
+      if (!name) {
+        Alert.alert('Error', 'Please enter your full name');
+        return;
+      }
+      if (password !== confirmPassword) {
+        Alert.alert('Error', 'Passwords do not match');
+        return;
+      }
+
+      try {
+        await register(name, email, password, role);
+        if (logout) {
+          await logout();
+        }
+        Alert.alert(
+          'Success',
+          'Account created successfully! Please log in with your credentials.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setIsSignup(false); // Switch to Login Tab
+                setPassword('');
+                setConfirmPassword('');
+              },
+            },
+          ]
+        );
+      } catch (err) {
+        Alert.alert('Registration Failed', err.message || 'Something went wrong');
+      }
+    } else {
+      try {
+        const loggedInUser = await login(email, password);
+        
+        // Role-based Navigation Check
+        if (loggedInUser && loggedInUser.role === 'manager') {
+          navigation.navigate('ManagerDashboard');
+        } else {
+          navigation.navigate('MainTabs');
+        }
+      } catch (err) {
+        Alert.alert('Login Failed', err.message || 'Something went wrong');
       }
     }
-
-    return errs;
-  };
-
-  const initialValues = {
-    email: '',
-    password: '',
-    confirmPassword: '',
-    name: '',
-    role: 'customer', // Default role
-  };
-
-  const { values, errors, handleChange, handleSubmit, resetForm } = useForm(
-    initialValues,
-    validate
-  );
-
-  const toggleMode = () => {
-    setIsSignup(!isSignup);
-    resetForm(initialValues);
-  };
-
-  const handleAuthSubmit = (formData) => {
-    setIsSubmitting(true);
-
-    setTimeout(() => {
-      setIsSubmitting(false);
-
-      if (isSignup) {
-        const newUser = {
-          id: `user-${Date.now()}`,
-          name: formData.name,
-          email: formData.email.toLowerCase(),
-          password: formData.password,
-          role: formData.role || 'customer',
-        };
-        mockUsers.push(newUser);
-
-        Alert.alert('Success 🎉', `Account created as ${newUser.role.toUpperCase()}! You can now log in.`);
-        setIsSignup(false);
-        resetForm({ ...initialValues, email: formData.email });
-      } else {
-        const user = mockUsers.find(
-          (u) =>
-            u.email.toLowerCase() === formData.email.toLowerCase() &&
-            u.password === formData.password
-        );
-
-        if (user) {
-          if (login) login(user);
-          navigation.reset({
-            index: 0,
-            routes: [{ name: user.role === 'manager' ? 'ManagerDashboard' : 'MainTabs' }],
-          });
-        } else {
-          Alert.alert('Authentication Failed', 'Invalid email or password credentials.');
-        }
-      }
-    }, 800);
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <Text style={styles.title}>{isSignup ? 'Create Account' : 'Welcome Back'}</Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        
+        {/* Top Header with Gear Circle Icon and Title */}
+        <View style={styles.headerRow}>
+          <View style={styles.gearCircleOuter}>
+            <View style={styles.gearCircleInner}>
+              <Text style={styles.gearIcon}>⚙</Text>
+            </View>
+          </View>
+          <Text style={styles.titleText}>
+            {isSignup ? 'Create Account' : 'Welcome Back'}
+          </Text>
+        </View>
 
-        <View style={styles.toggleContainer}>
+        {/* Segmented Tab Switcher */}
+        <View style={styles.tabContainer}>
           <TouchableOpacity
-            style={[styles.toggleBtn, !isSignup && styles.activeToggle]}
-            onPress={() => isSignup && toggleMode()}
+            style={[styles.tabBtn, !isSignup && styles.tabBtnActive]}
+            onPress={() => setIsSignup(false)}
           >
-            <Text style={[styles.toggleText, !isSignup && styles.activeToggleText]}>Login</Text>
+            <Text style={[styles.tabText, !isSignup && styles.tabTextActiveLogin]}>
+              Login
+            </Text>
           </TouchableOpacity>
+
           <TouchableOpacity
-            style={[styles.toggleBtn, isSignup && styles.activeToggle]}
-            onPress={() => !isSignup && toggleMode()}
+            style={[styles.tabBtn, isSignup && styles.tabBtnActive]}
+            onPress={() => setIsSignup(true)}
           >
-            <Text style={[styles.toggleText, isSignup && styles.activeToggleText]}>Sign Up</Text>
+            <Text style={[styles.tabText, isSignup && styles.tabTextActiveSignup]}>
+              Sign Up
+            </Text>
           </TouchableOpacity>
         </View>
 
+        {/* Full Name Field (Sign Up Only) */}
         {isSignup && (
-          <View style={styles.inputGroup}>
+          <View style={styles.fieldGroup}>
             <Text style={styles.label}>Full Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Zainab Farhan"
-              value={values.name}
-              onChangeText={(text) => handleChange('name', text)}
-            />
-            {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
+            <View style={styles.inputBox}>
+              <TextInput
+                style={styles.input}
+                placeholder="Zainab Farhan"
+                placeholderTextColor="#A0A0A0"
+                value={name}
+                onChangeText={setName}
+              />
+            </View>
           </View>
         )}
 
-        <View style={styles.inputGroup}>
+        {/* Email Address Field */}
+        <View style={styles.fieldGroup}>
           <Text style={styles.label}>Email Address</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="zainab@test.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={values.email}
-            onChangeText={(text) => handleChange('email', text)}
-          />
-          {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+          <View style={styles.inputBox}>
+            <TextInput
+              style={styles.input}
+              placeholder="zainab@test.com"
+              placeholderTextColor="#A0A0A0"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
         </View>
 
-        <View style={styles.inputGroup}>
+        {/* Password Field */}
+        <View style={styles.fieldGroup}>
           <Text style={styles.label}>Password</Text>
-          <View style={styles.passwordContainer}>
+          <View style={styles.inputBox}>
             <TextInput
               style={[styles.input, { flex: 1 }]}
               placeholder="Password1"
+              placeholderTextColor="#A0A0A0"
+              value={password}
+              onChangeText={setPassword}
               secureTextEntry={!showPassword}
-              value={values.password}
-              onChangeText={(text) => handleChange('password', text)}
             />
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.showBtn}>
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
               <Text style={styles.showBtnText}>{showPassword ? 'Hide' : 'Show'}</Text>
             </TouchableOpacity>
           </View>
-          {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
         </View>
 
+        {/* Confirm Password Field (Sign Up Only) */}
         {isSignup && (
-          <View style={styles.inputGroup}>
+          <View style={styles.fieldGroup}>
             <Text style={styles.label}>Confirm Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Re-enter password"
-              secureTextEntry={!showPassword}
-              value={values.confirmPassword}
-              onChangeText={(text) => handleChange('confirmPassword', text)}
-            />
-            {errors.confirmPassword && (
-              <Text style={styles.errorText}>{errors.confirmPassword}</Text>
-            )}
+            <View style={styles.inputBox}>
+              <TextInput
+                style={styles.input}
+                placeholder="Re-enter password"
+                placeholderTextColor="#A0A0A0"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showPassword}
+              />
+            </View>
           </View>
         )}
 
-        {/* Explicit Role Selection Options in Sign Up */}
+        {/* Account Role Selector (Sign Up Only) */}
         {isSignup && (
-          <View style={styles.inputGroup}>
+          <View style={styles.fieldGroup}>
             <Text style={styles.label}>Select Account Role</Text>
             <View style={styles.roleRow}>
+              {/* Customer Role Button */}
               <TouchableOpacity
                 style={[
                   styles.roleBtn,
-                  values.role === 'customer' && styles.activeRoleBtn,
+                  role === 'customer' ? styles.customerBtnActive : styles.roleBtnInactive,
                 ]}
-                onPress={() => handleChange('role', 'customer')}
+                onPress={() => setRole('customer')}
               >
                 <Text
                   style={[
                     styles.roleText,
-                    values.role === 'customer' && styles.activeRoleText,
+                    role === 'customer' ? styles.roleTextActive : styles.roleTextInactive,
                   ]}
                 >
-                  👤 Customer
+                  👤  Customer
                 </Text>
               </TouchableOpacity>
 
+              {/* Manager Role Button */}
               <TouchableOpacity
                 style={[
                   styles.roleBtn,
-                  values.role === 'manager' && styles.activeRoleBtn,
+                  role === 'manager' ? styles.managerBtnActive : styles.roleBtnInactive,
                 ]}
-                onPress={() => handleChange('role', 'manager')}
+                onPress={() => setRole('manager')}
               >
                 <Text
                   style={[
                     styles.roleText,
-                    values.role === 'manager' && styles.activeRoleText,
+                    role === 'manager' ? styles.roleTextActive : styles.roleTextInactive,
                   ]}
                 >
-                  👔 Manager
+                  👔  Manager
                 </Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
 
+        {/* Main Action Button */}
         <TouchableOpacity
-          style={[styles.submitBtn, isSubmitting && styles.disabledBtn]}
-          onPress={() => handleSubmit(handleAuthSubmit)}
-          disabled={isSubmitting}
+          style={styles.submitBtn}
+          onPress={handleSubmit}
+          disabled={loading}
         >
-          {isSubmitting ? (
-            <ActivityIndicator color="#FFF" />
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.submitBtnText}>{isSignup ? 'Register Account' : 'Log In'}</Text>
+            <Text style={styles.submitBtnText}>
+              {isSignup ? 'Register Account' : 'Log In'}
+            </Text>
           )}
         </TouchableOpacity>
+
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FA' },
-  scrollContainer: { padding: 24 },
-  title: { fontSize: 26, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
-  toggleContainer: { flexDirection: 'row', backgroundColor: '#E9ECEF', borderRadius: 8, padding: 4, marginBottom: 20 },
-  toggleBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 6 },
-  activeToggle: { backgroundColor: '#FFFFFF' },
-  toggleText: { fontSize: 14, fontWeight: '600', color: '#6C757D' },
-  activeToggleText: { color: '#D9534F' },
-  inputGroup: { marginBottom: 14 },
-  label: { fontSize: 13, fontWeight: '600', color: '#343A40', marginBottom: 6 },
-  input: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#CED4DA', borderRadius: 8, padding: 10, fontSize: 15 },
-  passwordContainer: { flexDirection: 'row', alignItems: 'center' },
-  showBtn: { position: 'absolute', right: 12 },
-  showBtnText: { color: '#D9534F', fontWeight: '600' },
-  errorText: { color: '#DC3545', fontSize: 11, marginTop: 2 },
-  roleRow: { flexDirection: 'row', gap: 10 },
-  roleBtn: { flex: 1, paddingVertical: 10, borderWidth: 1, borderColor: '#CED4DA', borderRadius: 8, alignItems: 'center', backgroundColor: '#FFF' },
-  activeRoleBtn: { backgroundColor: '#D9534F', borderColor: '#D9534F' },
-  roleText: { fontSize: 14, fontWeight: 'bold', color: '#495057' },
-  activeRoleText: { color: '#FFFFFF' },
-  submitBtn: { backgroundColor: '#D9534F', paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginTop: 10 },
-  disabledBtn: { backgroundColor: '#E0A8A5' },
-  submitBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
+  container: {
+    flex: 1,
+    backgroundColor: '#F7F8F9',
+  },
+  scrollContent: {
+    paddingHorizontal: 22,
+    paddingTop: 16,
+    paddingBottom: 30,
+  },
+  /* Header Section */
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    marginTop: 10,
+  },
+  gearCircleOuter: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#E2E4E8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  gearCircleInner: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#ADAFB4',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  gearIcon: {
+    fontSize: 26,
+    color: '#FFFFFF',
+  },
+  titleText: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#000000',
+    letterSpacing: -0.5,
+  },
+  /* Segmented Control */
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#E8EAEE',
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 24,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  tabBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#71757E',
+  },
+  tabTextActiveSignup: {
+    color: '#DF5351',
+    fontWeight: 'bold',
+  },
+  tabTextActiveLogin: {
+    color: '#DF5351',
+    fontWeight: 'bold',
+  },
+  /* Input Fields */
+  fieldGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2A2C30',
+    marginBottom: 8,
+  },
+  inputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.2,
+    borderColor: '#D8DCE3',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 52,
+  },
+  input: {
+    fontSize: 16,
+    color: '#222222',
+    width: '100%',
+  },
+  showBtnText: {
+    color: '#DF5351',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  /* Role Selection */
+  roleRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  roleBtn: {
+    flex: 1,
+    height: 50,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  customerBtnActive: {
+    backgroundColor: '#DF5351',
+  },
+  managerBtnActive: {
+    backgroundColor: '#DF5351',
+  },
+  roleBtnInactive: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.2,
+    borderColor: '#D8DCE3',
+  },
+  roleText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  roleTextActive: {
+    color: '#FFFFFF',
+  },
+  roleTextInactive: {
+    color: '#2A2C30',
+  },
+  /* Submit Button */
+  submitBtn: {
+    backgroundColor: '#DF5351',
+    height: 54,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  submitBtnText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+  },
 });

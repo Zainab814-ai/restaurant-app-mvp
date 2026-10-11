@@ -1,113 +1,179 @@
-# Restaurant App MVP
+# 🍽️ Restaurant App with Backend Server & Database (Assignment 2)
 
-Frontend-only React Native (Expo) restaurant app for Assignment 1 (Fall 2026). Customers browse the menu, search, manage a cart, reserve tables and track orders. Managers handle incoming orders, reservations and menu items. There is no backend, external API or state management library; all data is mock data held in React state and persisted with AsyncStorage.
-
-**Demo video (3 min):** [Watch the full flow](https://drive.google.com/file/d/1Rl0SzBMGW-FNIBGUJy4tWNOhiSVDPq5r/view?usp=drivesdk)
+This project integrates a **React Native (Expo)** app with a **Node.js + Express** backend server and a **MongoDB** database. It includes JWT authentication, role-based access control (Customer / Manager), menu management, orders, and reservations.
 
 ---
 
-## Installation
+## 🧰 Tech Stack
 
-**Requirements:** Node.js 18 or higher, npm, and the Expo Go app on your phone (or Android Studio / Xcode for an emulator).
+| Layer | Technology |
+|-------|------------|
+| Mobile App | React Native (Expo) |
+| Backend | Node.js, Express |
+| Database | MongoDB (Atlas / Compass) |
+| Authentication | JWT (JSON Web Token) |
+| API Testing | Postman / Thunder Client |
+
+---
+
+## 🛠️ How to Run the Server
+
+### 1. Install Dependencies
+
+Navigate to the server folder and install the npm packages:
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/restaurant-app-mvp.git
-cd restaurant-app-mvp
+cd server
 npm install
-npx expo start -c
 ```
 
-**Run the app**
-- **Expo Go (phone):** scan the QR code shown in the terminal. Android: Expo Go app scanner. iOS: default Camera app.
-- **Emulator:** press `a` in the terminal for the Android emulator, or `i` for the iOS simulator.
+### 2. Set Up Environment Variables (`.env`)
+
+Create a `.env` file in the root of the `server` directory (follow `.env.example`):
+
+```env
+PORT=5000
+MONGO_URI=mongodb+srv://your_username:your_password@cluster0.mongodb.net/restaurant_app
+JWT_SECRET=supersecretjwtkey123
+```
+
+> ⚠️ **Note:** Do not commit the `.env` file to GitHub.
+
+### 3. Seed the Database
+
+Run the seed script to populate the database with initial users, menu items, and tables:
+
+```bash
+npm run seed
+```
+
+### 4. Run the Development Server
+
+Start the backend server with Nodemon:
+
+```bash
+npm run dev
+```
+
+The server will run at `http://localhost:5000`.
 
 ---
 
-## Mock Login Credentials
+## 🌐 Where to Change BASE_URL
 
-| Role     | Email             | Password  |
-|----------|-------------------|-----------|
+Update the backend API address in the mobile app's network request client.
+
+**File path:** `src/api/client.js`
+
+```javascript
+// Real Device Testing (same Wi-Fi network)
+export const BASE_URL = 'http://192.168.X.X:5000/api';
+
+// Android Emulator
+// export const BASE_URL = 'http://10.0.2.2:5000/api';
+```
+
+> 💡 Replace `192.168.X.X` with your computer's local IPv4 address (`ipconfig` on Windows, `ifconfig` on Mac/Linux). Your phone and computer must be on the **same Wi-Fi network**.
+
+---
+
+## 🔑 Seeded Credentials
+
+| Role | Email | Password |
+|------|-------|----------|
 | Customer | customer@test.com | Password1 |
-| Manager  | manager@test.com  | Password1 |
-
-Signup is also available and lets you choose Customer or Manager as the role.
+| Manager | manager@test.com | Password1 |
 
 ---
 
-## Hooks Used Per Screen
+## 📡 API Endpoints
 
-| Screen / File | Hooks | Used for |
-|---|---|---|
-| `LoginScreen.js` | `useState`, `useForm`, `useAuth` | Login/Signup mode, show-password toggle, `isSubmitting`, validation errors, storing the user in AuthContext |
-| `MenuScreen.js` | `useState`, `useEffect`, `useRef`, `useMemo`, `useCallback`, `useDebounce`, `useCart` | 1.5s simulated fetch with timer cleanup, category chips, pull to refresh, header title count, search input ref, FlatList ref, back-to-top button, render counter, recent searches, filter + search + sort as derived data |
-| `MenuItemCard.js` | `React.memo` | Re-renders only when its own props change |
-| `ProfileScreen.js` | `useAuth`, `useTheme` | Shows name, email, role; logout; light/dark switch |
-| `CartScreen.js` | `useCart` (`useReducer`), `useState` | Quantity stepper, remove, per-item note, promo code, Dine-in/Takeaway choice |
-| `OrderSummaryScreen.js` | `useMemo`, `useCart` | Subtotal, 5% service charge, 15% tax, discount, grand total |
-| `ReservationScreen.js` | `useReservation`, `useForm`, `useState` | Date, time slot, party size, table, contact details, availability, confirmation modal, My Reservations |
-| `OrderTrackingScreen.js` | `useEffect` (`setInterval`), `useState`, `useOrders` | Auto status change at 10s / 20s / 30s, step indicator, elapsed timer, interval cleanup |
-| `ManagerDashboard.js` | `useState`, `useOrders`, `useMenu` | Incoming Orders, Reservations, Menu Management tabs |
-| `AuthContext.js` | `createContext`, `useState`, `useContext` | `user`, `login`, `logout` |
-| `ThemeContext.js` | `createContext`, `useState`, `useContext` | `isDark`, `toggleTheme` |
-| `CartContext.js` | `createContext`, `useReducer`, `useContext` | Cart state and dispatch |
-| `OrdersContext.js` | `createContext`, `useReducer`, `useEffect`, `useContext` | Orders, reservations and menu edits saved to and loaded from AsyncStorage |
-| `src/hooks/` | `useForm`, `useDebounce`, `useReservation`, `useAuth`, `useTheme`, `useCart` | Reusable logic kept out of screens |
+### Authentication
 
----
+| Method | Endpoint | Access | Request Body | Response |
+|--------|----------|--------|--------------|----------|
+| POST | `/api/auth/register` | Public | name, email, password | User object & JWT token |
+| POST | `/api/auth/login` | Public | email, password | User info & JWT token |
 
-## Context API vs Prop Drilling (Q6)
+### Menu
 
-The logged-in user and the current theme are needed on almost every screen, including deeply nested components such as cards and buttons.
-Passing them as props through every navigator and screen would force intermediate components to accept props they never use.
-With AuthContext and ThemeContext, any component reads them directly through `useAuth` and `useTheme`.
-The whole app is wrapped in both providers, so toggling the theme or logging out updates every screen instantly.
-Both hooks throw an error if used outside their provider, which catches wiring mistakes early.
-**Drawback:** when a context value changes, every component that consumes that context re-renders, even if it only uses a small unchanged part of the value.
+| Method | Endpoint | Access | Request Body | Response |
+|--------|----------|--------|--------------|----------|
+| GET | `/api/menu` | Public | None | List of menu items |
+| GET | `/api/menu/:id` | Public | None | Single menu item details |
+| POST | `/api/menu` | Manager | name, price, category, ... | Created menu item |
+| PUT | `/api/menu/:id` | Manager | price / updated fields | Updated menu item |
+| DELETE | `/api/menu/:id` | Manager | None | Delete confirmation |
 
----
+### Orders
 
-## useReducer vs useState for the Cart (Q7)
+| Method | Endpoint | Access | Request Body | Response |
+|--------|----------|--------|--------------|----------|
+| POST | `/api/orders` | Customer | items, orderType, table, ... | Placed order object |
+| GET | `/api/orders/my` | Customer | None | Logged-in user's order history |
+| GET | `/api/orders` | Manager | None | All orders in the system |
+| PATCH | `/api/orders/:id/status` | Manager | status | Updated order status |
 
-The cart has related fields (`items`, `promoCode`, `discountPercent`) that must change together, for example clearing the cart while removing the promo.
-A reducer keeps all eight transitions in one pure function (`cartReducer.js`), so the logic is testable without rendering any UI.
-With `useState`, each handler would rebuild nested item arrays by hand, and the update rules would be scattered across components.
-`useState` would have been enough if the cart only stored a simple list of item ids with no quantities, notes or promo code.
+### Reservations
 
-### Reducer Test Cases
+| Method | Endpoint | Access | Request Body | Response |
+|--------|----------|--------|--------------|----------|
+| POST | `/api/reservations` | Customer | date, time, guests, table | Reservation object |
+| GET | `/api/reservations/my` | Customer | None | Logged-in user's reservations |
+| GET | `/api/reservations` | Manager | None | All reservations in the system |
+| PATCH | `/api/reservations/:id` | Manager | status | Updated reservation status |
 
-State shape: `{ items, promoCode, discountPercent }`. Item shape: `{ id, name, price, quantity, note }`.
+### Health Check
 
-| # | Action | Initial state | Expected state |
-|---|---|---|---|
-| 1 | `ADD_ITEM` (id 1) | `items: []` | `items: [{ id: 1, quantity: 1, note: "" }]` |
-| 2 | `ADD_ITEM` (id 1, already in cart) | `items: [{ id: 1, quantity: 1 }]` | one item, `quantity: 2` |
-| 3 | `INCREMENT` (id 1) | `items: [{ id: 1, quantity: 2 }]` | `quantity: 3` |
-| 4 | `DECREMENT` (id 1) | `items: [{ id: 1, quantity: 2 }]` | `quantity: 1` |
-| 5 | `DECREMENT` (id 1) | `items: [{ id: 1, quantity: 1 }]` | `items: []` (item removed at zero) |
-| 6 | `REMOVE_ITEM` (id 1) | `items: [{ id: 1 }, { id: 2 }]` | `items: [{ id: 2 }]` |
-| 7 | `UPDATE_NOTE` (id 1, "no onions") | `items: [{ id: 1, note: "" }]` | `note: "no onions"` |
-| 8 | `APPLY_PROMO` ("WELCOME10") | `promoCode: null, discountPercent: 0` | `promoCode: "WELCOME10", discountPercent: 10` |
-| 9 | `APPLY_PROMO` ("FAKE99") | `promoCode: null, discountPercent: 0` | state unchanged, error message shown |
-| 10 | `REMOVE_PROMO` | `promoCode: "FEAST20", discountPercent: 20` | `promoCode: null, discountPercent: 0` |
-| 11 | `CLEAR_CART` | two items in cart | `items: []` |
+| Method | Endpoint | Access | Response |
+|--------|----------|--------|----------|
+| GET | `/api/health` | Public | Server status |
 
 ---
 
-## Project Structure
+## 📸 Screenshots Overview
 
-```
-restaurant-app-mvp/
-├── A1/
-│   ├── SRS.pdf
-│   ├── UML/            (use case, class, sequence, state machine, component)
-│   ├── Q4_Note.txt
-│   └── screenshots/
-└── src/
-    ├── components/
-    ├── screens/
-    ├── context/
-    ├── reducers/
-    ├── hooks/
-    ├── data/
-    └── navigation/
-```
+All screenshots are saved in the `A2/screenshots/` folder. The following screenshots are included:
+
+### Question 2 — Server Health Route
+
+| File | What it shows |
+|------|---------------|
+| `health_postman.png` | Postman / Thunder Client health check (`GET /api/health`) |
+| `health_phone.png` | Health route opened in the phone browser |
+
+### Question 3 — MongoDB Database
+
+| File | What it shows |
+|------|---------------|
+| `mongo_seed.png` | Compass / Atlas `menuitems` collection after seeding |
+
+### Question 4 & 5 — Menu & Auth API Verification
+
+| File | What it shows |
+|------|---------------|
+| `menu_200.png` | Menu items list (200 OK) |
+| `menu_400.png` | Invalid menu item ID (400 Bad Request) |
+| `postman_401.png` | Protected route without token (401 Unauthorized) |
+| `postman_403.png` | Customer token on a manager-only route (403 Forbidden) |
+| `postman_201.png` | Manager token creating a menu item (201 Created) |
+
+### Question 6 — Dual Device Live Sync
+
+| File | What it shows |
+|------|---------------|
+| `dual_device.png` | Real-time price update visible on both devices |
+
+---
+
+## 🎥 Question 7 — Video Demonstration
+
+Multi-device live order tracking and reservation test:
+
+👉 [**Click here to watch the demo video**](https://drive.google.com/file/d/1nluqLpHGCU2oscgEAG44Z_BIyk31-oYB/view?usp=drivesdk)
+
+---
+
+## 👩‍💻 Author
+
+**Zainab Farhan** — BS Artificial Intelligence

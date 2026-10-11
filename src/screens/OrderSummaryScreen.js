@@ -6,15 +6,16 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCart } from '../context/CartContext';
-import { useOrders } from '../context/OrdersContext';
+import apiClient from '../api/client';
 
 export default function OrderSummaryScreen({ route, navigation }) {
   const { cartItems = [], discountAmount = 0 } = route.params || {};
   const { state, dispatch } = useCart();
-  const { placeOrder } = useOrders();
+  const [loading, setLoading] = useState(false);
 
   const items = cartItems.length > 0 ? cartItems : state?.items || [];
 
@@ -24,7 +25,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
 
   // Requirement 3: Bill breakdown calculation via useMemo
   const { subtotal, serviceCharge, salesTax, grandTotal } = useMemo(() => {
-    const sub = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    const sub = items.reduce((acc, item) => acc + (Number(item.price) || 0) * (Number(item.quantity) || 1), 0);
     const afterDiscount = Math.max(0, sub - discountAmount);
     const sc = afterDiscount * 0.05; // 5% Service Charge
     const tax = afterDiscount * 0.15; // 15% Sales Tax
@@ -38,32 +39,62 @@ export default function OrderSummaryScreen({ route, navigation }) {
     };
   }, [items, discountAmount]);
 
-  const handleConfirmOrder = () => {
+  // Handle Order Placement directly with Backend API Call
+  const handleConfirmOrder = async () => {
     if (items.length === 0) {
       Alert.alert('Error', 'Cart is empty!');
       return;
     }
 
-    // Place order via OrdersContext
-    const newOrder = placeOrder({
-      items,
-      totalPrice: grandTotal,
-      orderType,
-      tableNumber: orderType === 'dine-in' ? tableNumber : null,
-      pickupTime: orderType === 'takeaway' ? pickupTime : null,
-    });
+    try {
+      setLoading(true);
 
-    // Clear cart state
-    if (dispatch) {
-      dispatch({ type: 'CLEAR_CART' });
+      const payload = {
+        items: items.map((item) => ({
+          _id: item._id || item.id,
+          name: item.name,
+          price: Number(item.price),
+          quantity: Number(item.quantity),
+        })),
+        totalAmount: grandTotal,
+        orderType: orderType,
+        tableNumber: orderType === 'dine-in' ? tableNumber : null,
+        pickupTime: orderType === 'takeaway' ? pickupTime : null,
+        deliveryAddress: orderType === 'dine-in' ? tableNumber : 'Takeaway Pickup',
+      };
+
+      // Real Backend API Call (POST /orders)
+      const response = await apiClient('/orders', {
+        method: 'POST',
+        body: payload,
+      });
+
+      // Extract generated MongoDB Order ID
+      const newOrder = response.order || response.data || response;
+      const createdOrderId = newOrder._id || newOrder.id;
+
+      // Clear cart state
+      if (dispatch) {
+        dispatch({ type: 'CLEAR_CART' });
+      }
+
+      Alert.alert('Success 🎉', 'Order placed successfully!');
+
+      // FIXED ROUTE NAME: Route set to exact 'OrderTracking'
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'OrderTracking', params: { orderId: createdOrderId } }],
+      });
+
+    } catch (error) {
+      console.error('Order Error:', error.message);
+      Alert.alert('Order Failed', error.message || 'Server error while placing order');
+    } finally {
+      setLoading(false);
     }
-
-    // Navigate immediately to Order Tracking Screen with timer (Pending/Preparing)
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'OrderTracking', params: { orderId: newOrder.id } }],
-    });
   };
+
+  const getItemId = (item, index) => item._id || item.id || `summary-item-${index}`;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -94,8 +125,8 @@ export default function OrderSummaryScreen({ route, navigation }) {
         {/* Ordered Items List */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Items Ordered ({items.length})</Text>
-          {items.map((item) => (
-            <View key={item.id} style={styles.itemRow}>
+          {items.map((item, idx) => (
+            <View key={String(getItemId(item, idx))} style={styles.itemRow}>
               <Text style={styles.itemName}>
                 {item.quantity}x {item.name}
               </Text>
@@ -134,8 +165,16 @@ export default function OrderSummaryScreen({ route, navigation }) {
         </View>
 
         {/* Place Order Button */}
-        <TouchableOpacity style={styles.placeOrderBtn} onPress={handleConfirmOrder}>
-          <Text style={styles.placeOrderBtnText}>Confirm & Place Order</Text>
+        <TouchableOpacity 
+          style={styles.placeOrderBtn} 
+          onPress={handleConfirmOrder}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <Text style={styles.placeOrderBtnText}>Confirm & Place Order</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

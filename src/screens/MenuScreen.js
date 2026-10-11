@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,21 +7,25 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { initialMenuItems } from '../data/menu';
 import MenuItemCard from '../components/MenuItemCard';
 import { useCart } from '../context/CartContext';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext'; // Auth hook added
+import useApi from '../hooks/useApi'; // Requirement 4: Custom hook
 
 const CATEGORIES = ['All', 'Starters', 'Mains', 'Desserts', 'Drinks'];
 
 export default function MenuScreen({ navigation }) {
-  const [menuItems, setMenuItems] = useState([]);
+  // Requirement 3 & 4: Live GET /api/menu call using useApi custom hook
+  const { data: menuItems, loading, error, refetch } = useApi('/menu');
+  const { user } = useAuth(); // User role check karne ke liye
+
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortOption, setSortOption] = useState('default');
   const [favourites, setFavourites] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -32,14 +36,6 @@ export default function MenuScreen({ navigation }) {
 
   const { dispatch } = useCart();
   const { theme } = useTheme();
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setMenuItems(initialMenuItems);
-      setIsLoading(false);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, []);
 
   const handleSearchChange = (text) => {
     setSearchQuery(text);
@@ -58,19 +54,19 @@ export default function MenuScreen({ navigation }) {
   }, []);
 
   const filteredAndSortedItems = useMemo(() => {
-    let result = [...menuItems];
+    let result = Array.isArray(menuItems) ? [...menuItems] : [];
 
     if (selectedCategory !== 'All') {
       result = result.filter(
-        (item) => item.category.toLowerCase() === selectedCategory.toLowerCase()
+        (item) => item.category && item.category.toLowerCase() === selectedCategory.toLowerCase()
       );
     }
 
     if (debouncedQuery) {
       result = result.filter(
         (item) =>
-          item.name.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-          item.description.toLowerCase().includes(debouncedQuery.toLowerCase())
+          (item.name && item.name.toLowerCase().includes(debouncedQuery.toLowerCase())) ||
+          (item.description && item.description.toLowerCase().includes(debouncedQuery.toLowerCase()))
       );
     }
 
@@ -99,12 +95,22 @@ export default function MenuScreen({ navigation }) {
         </Text>
         
         {/* Navigation Action Buttons Header */}
-        <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          {/* Manager Role Check: Sirf Manager ko Dashboard Button Dikhai Dega */}
+          {user && user.role === 'manager' && (
+            <TouchableOpacity
+              style={[styles.cartHeaderBtn, { backgroundColor: '#007AFF' }]}
+              onPress={() => navigation.navigate('ManagerDashboard')}
+            >
+              <Text style={styles.cartHeaderBtnText}>👔 Dashboard</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={[styles.cartHeaderBtn, { backgroundColor: '#28A745' }]}
             onPress={() => navigation.navigate('Reservation')}
           >
-            <Text style={styles.cartHeaderBtnText}>📅 Book Table</Text>
+            <Text style={styles.cartHeaderBtnText}>📅 Table</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -122,6 +128,7 @@ export default function MenuScreen({ navigation }) {
           ref={searchInputRef}
           style={[styles.searchInput, { color: currentTheme.text }]}
           placeholder="Search menu..."
+          placeholderTextColor="#888"
           value={searchQuery}
           onChangeText={handleSearchChange}
         />
@@ -146,6 +153,7 @@ export default function MenuScreen({ navigation }) {
           horizontal
           data={CATEGORIES}
           keyExtractor={(c) => c}
+          showsHorizontalScrollIndicator={false}
           renderItem={({ item: category }) => (
             <TouchableOpacity
               style={[
@@ -162,20 +170,30 @@ export default function MenuScreen({ navigation }) {
         />
       </View>
 
-      {/* List */}
-      {isLoading ? (
+      {/* Requirement 3: Loading Indicator, Error State + Retry, Pull to Refresh */}
+      {loading && !menuItems ? (
         <ActivityIndicator size="large" color={currentTheme.primary} style={{ marginTop: 40 }} />
+      ) : error ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Failed to load menu: {error}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={refetch}>
+            <Text style={styles.retryBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <FlatList
           ref={flatListRef}
           data={filteredAndSortedItems}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={(item) => (item._id ? item._id.toString() : item.id.toString())}
+          refreshControl={
+            <RefreshControl refreshing={loading} onRefresh={refetch} colors={[currentTheme.primary]} />
+          }
           renderItem={({ item }) => (
             <MenuItemCard
               item={item}
               onAddToCart={handleAddToCart}
               onToggleFavourite={handleToggleFavourite}
-              isFavourite={favourites.includes(item.id)}
+              isFavourite={favourites.includes(item._id || item.id)}
             />
           )}
           contentContainerStyle={{ padding: 16, gap: 16 }}
@@ -188,9 +206,9 @@ export default function MenuScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
-  headerTitle: { fontSize: 22, fontWeight: 'bold' },
-  cartHeaderBtn: { backgroundColor: '#D9534F', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  cartHeaderBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 13 },
+  headerTitle: { fontSize: 20, fontWeight: 'bold' },
+  cartHeaderBtn: { backgroundColor: '#D9534F', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  cartHeaderBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 12 },
   searchBar: { paddingHorizontal: 16, marginBottom: 8 },
   searchInput: { borderWidth: 1, borderColor: '#CCC', borderRadius: 8, padding: 8 },
   sortContainer: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 8 },
@@ -198,4 +216,8 @@ const styles = StyleSheet.create({
   sortText: { fontSize: 12, fontWeight: 'bold' },
   categoryContainer: { paddingLeft: 16, marginBottom: 8 },
   chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, backgroundColor: '#E9ECEF', marginRight: 8 },
+  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  errorText: { color: '#D9534F', fontSize: 16, marginBottom: 12, textAlign: 'center' },
+  retryBtn: { backgroundColor: '#007AFF', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+  retryBtnText: { color: '#FFF', fontWeight: 'bold' },
 });

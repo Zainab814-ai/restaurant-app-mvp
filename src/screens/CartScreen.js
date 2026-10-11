@@ -17,7 +17,7 @@ export default function CartScreen({ navigation }) {
   const [discountPercent, setDiscountPercent] = useState(0);
 
   const cartItems = state?.items || [];
-  const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotal = cartItems.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1), 0);
   const discountAmount = (subtotal * discountPercent) / 100;
   const grandTotal = subtotal - discountAmount;
 
@@ -29,6 +29,8 @@ export default function CartScreen({ navigation }) {
       Alert.alert('Invalid Code', 'Try promo code: WELCOME10');
     }
   };
+
+  const getItemId = (item) => item._id || item.id;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -45,7 +47,7 @@ export default function CartScreen({ navigation }) {
         <>
           <FlatList
             data={cartItems}
-            keyExtractor={(item) => item.id.toString()}
+            keyExtractor={(item) => String(getItemId(item))}
             renderItem={({ item }) => (
               <View style={styles.cartCard}>
                 <View style={{ flex: 1 }}>
@@ -55,14 +57,14 @@ export default function CartScreen({ navigation }) {
                 <View style={styles.qtyRow}>
                   <TouchableOpacity
                     style={styles.qtyBtn}
-                    onPress={() => dispatch({ type: 'DECREMENT_QUANTITY', payload: item.id })}
+                    onPress={() => dispatch({ type: 'DECREMENT', payload: getItemId(item) })}
                   >
                     <Text style={styles.qtyBtnText}>-</Text>
                   </TouchableOpacity>
                   <Text style={styles.qtyText}>{item.quantity}</Text>
                   <TouchableOpacity
                     style={styles.qtyBtn}
-                    onPress={() => dispatch({ type: 'INCREMENT_QUANTITY', payload: item.id })}
+                    onPress={() => dispatch({ type: 'INCREMENT', payload: getItemId(item) })}
                   >
                     <Text style={styles.qtyBtnText}>+</Text>
                   </TouchableOpacity>
@@ -77,6 +79,7 @@ export default function CartScreen({ navigation }) {
               <TextInput
                 style={styles.promoInput}
                 placeholder="Promo Code (WELCOME10)"
+                placeholderTextColor="#999"
                 value={promoCode}
                 onChangeText={setPromoCode}
               />
@@ -96,6 +99,7 @@ export default function CartScreen({ navigation }) {
                 navigation.navigate('OrderSummary', {
                   cartItems: cartItems,
                   discountAmount: discountAmount,
+                  grandTotal: grandTotal,
                 })
               }
             >
@@ -124,7 +128,7 @@ const styles = StyleSheet.create({
   qtyText: { fontSize: 14, fontWeight: 'bold' },
   footer: { padding: 16, borderTopWidth: 1, borderColor: '#DEE2E6', backgroundColor: '#FFF' },
   promoRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  promoInput: { flex: 1, borderWidth: 1, borderColor: '#CED4DA', borderRadius: 6, padding: 8 },
+  promoInput: { flex: 1, borderWidth: 1, borderColor: '#CED4DA', borderRadius: 6, padding: 8, color: '#000' },
   applyBtn: { backgroundColor: '#28A745', paddingHorizontal: 14, justifyContent: 'center', borderRadius: 6 },
   applyBtnText: { color: '#FFF', fontWeight: 'bold' },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },

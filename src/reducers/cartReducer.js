@@ -9,12 +9,18 @@ export const PROMO_CODES = {
   FEAST20: 20,
 };
 
+// Helper function to safely compare item IDs (_id or id)
+const getItemId = (item) => (item ? item._id || item.id : null);
+
 export function cartReducer(state, action) {
   switch (action.type) {
     case 'ADD_ITEM': {
+      const payloadId = getItemId(action.payload);
+
       const existingIndex = state.items.findIndex(
-        (item) => item.id === action.payload.id
+        (item) => getItemId(item) === payloadId
       );
+
       if (existingIndex > -1) {
         const updatedItems = [...state.items];
         updatedItems[existingIndex] = {
@@ -23,52 +29,61 @@ export function cartReducer(state, action) {
         };
         return { ...state, items: updatedItems };
       }
+
       return {
         ...state,
         items: [...state.items, { ...action.payload, quantity: 1, note: '' }],
       };
     }
 
-    case 'REMOVE_ITEM':
+    case 'REMOVE_ITEM': {
+      const targetId = typeof action.payload === 'object' ? getItemId(action.payload) : action.payload;
       return {
         ...state,
-        items: state.items.filter((item) => item.id !== action.payload),
+        items: state.items.filter((item) => getItemId(item) !== targetId),
       };
+    }
 
-    case 'INCREMENT':
+    case 'INCREMENT': {
+      const targetId = typeof action.payload === 'object' ? getItemId(action.payload) : action.payload;
       return {
         ...state,
         items: state.items.map((item) =>
-          item.id === action.payload
+          getItemId(item) === targetId
             ? { ...item, quantity: item.quantity + 1 }
             : item
         ),
       };
+    }
 
-    case 'DECREMENT':
+    case 'DECREMENT': {
+      const targetId = typeof action.payload === 'object' ? getItemId(action.payload) : action.payload;
       return {
         ...state,
         items: state.items
           .map((item) =>
-            item.id === action.payload
+            getItemId(item) === targetId
               ? { ...item, quantity: item.quantity - 1 }
               : item
           )
           .filter((item) => item.quantity > 0),
       };
+    }
 
-    case 'UPDATE_NOTE':
+    case 'UPDATE_NOTE': {
+      const payloadId = getItemId(action.payload);
       return {
         ...state,
         items: state.items.map((item) =>
-          item.id === action.payload.id
+          getItemId(item) === payloadId
             ? { ...item, note: action.payload.note }
             : item
         ),
       };
+    }
 
     case 'APPLY_PROMO': {
-      const code = action.payload.toUpperCase();
+      const code = action.payload ? action.payload.toUpperCase() : '';
       if (PROMO_CODES[code]) {
         return {
           ...state,
