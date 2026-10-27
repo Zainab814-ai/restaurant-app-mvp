@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Single source of truth for Base URL
-const BASE_URL = 'http://10.195.208.211:5000/api';
+// Single source of truth for Base URL (Bina kisi extra space ke)
+const BASE_URL = 'https://unneeded-irritable-pulsate.ngrok-free.dev/api';
 
 export const apiClient = async (endpoint, { body, headers: customHeaders, ...customConfig } = {}) => {
   const token = await AsyncStorage.getItem('userToken');
@@ -22,7 +22,12 @@ export const apiClient = async (endpoint, { body, headers: customHeaders, ...cus
     config.body = JSON.stringify(body);
   }
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, config);
+  // URL aur endpoint dono se extra spaces automatic remove ho jayenge (.trim())
+  const cleanBaseUrl = BASE_URL.trim();
+  const cleanEndpoint = endpoint.trim();
+  const fullUrl = `${cleanBaseUrl}${cleanEndpoint}`;
+
+  const response = await fetch(fullUrl, config);
   const data = await response.json();
 
   if (!response.ok) {
