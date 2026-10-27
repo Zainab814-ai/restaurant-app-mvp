@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Single source of truth for Base URL (Bina kisi extra space ke)
-const BASE_URL = 'https://unneeded-irritable-pulsate.ngrok-free.dev/api';
+const BASE_URL = 'https://restaurant-app-mvp.vercel.app/api';
 
 export const apiClient = async (endpoint, { body, headers: customHeaders, ...customConfig } = {}) => {
   const token = await AsyncStorage.getItem('userToken');

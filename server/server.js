@@ -4,8 +4,8 @@ const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 const menuRoutes = require('./routes/menuRoutes');
 const authRoutes = require('./routes/authRoutes');
-const orderRoutes = require('./routes/orderRoutes'); // Step 1 added
-const reservationRoutes = require('./routes/reservationRoutes'); // Step 2 added
+const orderRoutes = require('./routes/orderRoutes');
+const reservationRoutes = require('./routes/reservationRoutes');
 
 dotenv.config();
 
@@ -21,8 +21,8 @@ app.use(express.json());
 // Mount API Routes
 app.use('/api/menu', menuRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/orders', orderRoutes); // Step 1
-app.use('/api/reservations', reservationRoutes); // Step 2
+app.use('/api/orders', orderRoutes);
+app.use('/api/reservations', reservationRoutes);
 
 // Health Check Route
 app.get('/api/health', (req, res) => {
@@ -41,6 +41,13 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+
+// Local development ke liye listen chalega
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+// VERCEL REQUIREMENT (Yeh zaroori tha!)
+module.exports = app;
