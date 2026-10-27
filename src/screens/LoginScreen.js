@@ -121,7 +121,7 @@ export default function LoginScreen({ navigation }) {
             <View style={styles.inputBox}>
               <TextInput
                 style={styles.input}
-                placeholder="Zainab Farhan"
+                placeholder="Enter here..."
                 placeholderTextColor="#A0A0A0"
                 value={name}
                 onChangeText={setName}
@@ -136,7 +136,7 @@ export default function LoginScreen({ navigation }) {
           <View style={styles.inputBox}>
             <TextInput
               style={styles.input}
-              placeholder="zainab@test.com"
+              placeholder="Enter here..."
               placeholderTextColor="#A0A0A0"
               value={email}
               onChangeText={setEmail}
@@ -152,7 +152,7 @@ export default function LoginScreen({ navigation }) {
           <View style={styles.inputBox}>
             <TextInput
               style={[styles.input, { flex: 1 }]}
-              placeholder="Password1"
+              placeholder="Enter Password.."
               placeholderTextColor="#A0A0A0"
               value={password}
               onChangeText={setPassword}
